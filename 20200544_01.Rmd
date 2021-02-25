@@ -1,0 +1,588 @@
+---
+title: "Assignment 1 Multivariate Analysis"
+author: "Abhishek Kumar"
+date: "2/21/2021"
+output:
+  html_document: default
+  word_document: default
+---
+
+__Setting Working Directory__
+```{r work_dir}
+
+setwd("G:\\My Drive\\spring_semester\\multivariate_analysis\\assignments\\assignment_1")
+
+```
+
+__Required packages and libraries__
+```{r}
+#install.packages('tidyverse')
+#install.packages('ggcorrplot')
+#install.packages('GGally')
+#install.packages('egg')
+library(ggplot2)
+library(tidyverse)
+library(ggcorrplot)
+library(GGally)
+library(egg)
+library(cluster) # for silhouette()
+library(e1071)
+library(mclust)
+library(class) # for knn()
+
+options (warn = -1)
+
+```
+
+
+__Loading Dataset__
+
+> The dataset has 431 observations and 582 variables.
+
+```{r load Data}
+
+dat = read.csv('Milk_MIR_Traits_data.csv')
+dim(dat)
+is.data.frame(dat)
+
+```
+
+__Setting seed to randomly generate an index value__
+```{r set_Seed}
+
+set.seed(20200544)
+index = sample.int(nrow(dat), 1) # Randomly generated an index value.
+
+```
+
+
+__Removing the row at index 240 from the dataset as generated earlier__
+
+> After removing one row from randomly generated index, the dataset has 430 observations.
+
+```{r}
+milk = dat[-index,]
+dim(milk)
+#head(milk)
+```
+
+# Task 1 : *Data Visualization and Explorations for protein and technological traits*
+
+__Analyzing protein related features of the milk__
+
+
+```{r proteins}
+
+proteins = data.frame(milk[, 6:12])
+is.data.frame(proteins)
+str(proteins)
+head(proteins)
+ggpairs(milk[, colnames(proteins)], progress = FALSE, na.rm = TRUE)
+summary(proteins)
+
+```
+
+> There are 8 variables covering technical traits of milk.
+
+```{r tech}
+
+tech_traits = data.frame(milk[, c(40, 44:50)])
+head(tech_traits)
+ggpairs(milk[, colnames(tech_traits)], progress = FALSE, na.rm = TRUE)
+
+```
+
+
+__Defining a function to plot and summarize the numerical variables of the dataset__
+
+```{r plotting_summary_function}
+
+outlier = c()
+plot_summary = function(df, x, var){
+  
+ outliers = c()
+ plot1 =  ggplot(df, aes(x = x))+
+   geom_histogram(aes(y = ..density..), binwidth = 0.5, color = "grey30", fill = "white")+
+   geom_density(alpha = .2, fill = "antiquewhite3")+
+   labs(title = paste('Histogram - ', var), x = var)
+ 
+ plot2 = ggplot(df, aes(x = x))+
+   geom_boxplot()+
+   labs(title = paste('Boxplot - ', var), x = var)
+   
+ outliers = c(outliers, which(x %in% boxplot(x)$out)) # out object in boxplot output returns the datapoints which lie beyond the extremes of whiskers.
+ print(summary(x))
+ 
+ ggarrange(plot1,plot2, nrow = 2)
+ return(outliers)
+ 
+}
+
+
+```
+
+
+__*Visualizations and initial checks of the protein data*__
+
+__Beta Casein__
+```{r beta casine}
+outliers_b = plot_summary(milk, milk$beta_casein, 'beta_casein' )
+outlier = c(outlier, outliers_b)
+length(outliers_b)
+```
+
+*From the summary and plots I can see that:*
+> Distribution of the data in general follows normal distribution, but due to some unusually large and small values present in the dataset for the beta caseine parameter the tails are slightly elongated on both ends.
+> Same is observed through the statistical summary, where mean and median of the data are pretty close suggesting normal distribution.
+> Average beta casein levels in milk sample is around 12.61
+> 75% of sample's had values less than 14.024.
+> Typical range for beta casein is milk sample if observed to be between 7.5 to 18 from the density curve and boxplot.
+> 17 unsual records was observed for beta casein.
+
+
+__Kappa Casein__
+```{r kappa_casein}
+outliers_k = plot_summary(milk, milk$kappa_casein, 'Kappa_casein' )
+outlier = c(outlier, outliers_k)
+length(outliers_k)
+```
+*From the summary and plots I can see that:*
+> The data seems to be normally distributed. Mean and median are approximately equal.
+> There is longer tail on the right side of the distribution due to presence of extremely large values of kappa casein levels in samples causing mean to shift towards the right.
+> On an average 5.67 is the level of kappa casein found in the milk sample, whereas 75% of samples had this k casein leverls less than 6.85.
+> I observed 9 unusal observations recorded for the kappa casein in milk samples beyong the normal range 1 to 11.
+> Removing these unusual values can make the distribution symmetric and normal.
+
+
+__alpha s1 Casein__
+```{r alpha_s1_casein}
+
+outliers_s1 = plot_summary(milk, milk$alpha_s1_casein, 'alpha_s1_casein' )
+outlier = c(outlier, outliers_s1)
+length(outliers_s1)
+
+```
+From the plot and summary statistics of data:
+
+> Data appears to have normal ditribution with a longer tail on the right due to some unsually high values.
+> On an average alpha s1 casein levels in milk sample was found to be around 13.829.
+> 13 Unusual values recored for this parameter in the milk samples.
+> Removing them can make the ditribution normal and symmetric.
+
+
+__alpha s2 Casein__
+
+```{r alpha_s2_casein}
+outliers_s2 = plot_summary(milk, milk$alpha_s2_casein, 'alpha_s2_casein' )
+outlier = c(outlier, outliers_s2)
+length(outliers_s2)
+```
+From the plot and summary statistics of data:
+
+> The alpha s2 casein levels data has a bell shape curve with an elongated tail on the right end due to outliers, which is pulling the means slightly towards right.
+> Mean and meadian are approximately equal, avearge amount of alpha s2 casein found in milk sample was around 3.452.
+> 22 unsual levels of alpha s2 casein was recorded.
+> Removal of these outliers can result in perfectly symmetrical bell shaped curve for the distribution.
+
+
+__Alpha Lactalbumin__
+
+```{r alpha_lactalbumin}
+
+outliers_lac = plot_summary(milk, milk$alpha_lactalbumin, 'alpha_lactalbumin' )
+outlier = c(outlier, outliers_lac)
+length(outliers_lac)
+
+```
+
+From the plot and summary statistics of data:
+
+> Alpha Lactalbumin levels data appears to be skewed with most of the data seems to be in the lower ends of the range between o to 2.5.
+> Mean is pulled towards the right of the curve due to unsually high values recorded for few samples.
+> 20 samples recorded unusual values for Alpha Lactalbumin levels in the samples.
+
+```{r beta_lactoglobulin_a}
+
+outliers_la_beta = plot_summary(milk, milk$beta_lactoglobulin_a, 'beta_lactoglobulin_a' )
+outlier = c(outlier, outliers_la_beta)
+length(outliers_la_beta)
+
+```
+> The data is slightly right skewed with some unusaully large values recorded, due to which mean is shifting towards right.
+> Mean and median differs slightly, with average value recorded for this measure was around 2.483.
+> 5 unsual high values recorded from this parameter.
+
+
+__Analysis of Technological Traits of milk samples__
+
+```{r tech_traits}
+
+head(tech_traits)
+summary(tech_traits)
+
+```
+
+__Casein Micelle Size__
+
+```{r Casein_micelle_size }
+
+plot_summary(milk, milk$Casein_micelle_size, 'Casein_micelle_size' )
+
+```
+> The data is right skewed and most of the data mass appears to be concentrated in the lower range of 250. 
+> Some extreme values are also observed over 2000.
+> Log trasnformation can be done to remove the skewness.
+
+_log transformation and plotting__
+```{r log_transform}
+
+milk$Casein_micelle_size =  log(milk$Casein_micelle_size) # Taking log on the column casein micelle size.
+outliers_cms = plot_summary(milk, milk$Casein_micelle_size, 'cms')
+outlier = c(outlier, outliers_cms)
+length(outliers_cms)
+
+```
+> After transformation data seems to have symmetric bell curve with some possible outliers, resulting in a longer tail on the right side.
+> Median (1.634) and mean (1.646) are approximately equal now, suggesting a normal districution of the data.
+> 20 samples seems to show unusual readings for the this parameter.
+> Removal of these possible outliers values will make data symmetric.
+
+
+__Heat_stability__
+
+> As seen from the pairs plot earlier heat stability data was right skewed.
+> Log transformation can be applied to remove the skewness of the data.
+
+```{r Heat_stability}
+
+milk$Heat_stability = log(milk$Heat_stability)
+outliers_hs = plot_summary(milk, milk$Heat_stability, 'Heat_stability')
+outlier = c(outlier, outliers_hs)
+length(outliers_hs)
+
+```
+> After log transformation data seems to have a perfect bell shape curve and mean(1.97) and median(1.91) are also approximately similar.
+> There is one possible outlier which can be removed before data modelling for analysis.
+
+__pH__
+
+```{r pH}
+
+outliers_pH = plot_summary(milk, milk$pH, 'pH')
+outlier = c(outlier, outliers_pH)
+length(outliers_pH)
+```
+
+> pH data in the milk samples seems to be normally distributed.
+> Average pH value of milk samples was found to be 6.70.
+> 75 of of samples had ph level less tha 6.78
+> One unusual reading was observed and can be a possible outlier.
+
+__Casein_content__
+
+```{r Casein_content}
+
+outliers_cc = plot_summary(milk, milk$Casein_content, 'Casein_content')
+outlier = c(outlier, outliers_cc)
+length(outliers_cc)
+
+```
+> This data is slightly left skewed due to some unusual low reading for this parameter.
+> This can be treated with removal of these unusual values.
+
+__Rennet Coagulation Time__
+
+```{r RCT}
+outliers_rct = plot_summary(milk, milk$RCT, 'RCT')
+outlier = c(outlier, outliers_rct)
+length(outliers_rct)
+
+```
+> The RCT data is normally distributed with few possible outliers.
+> Average RCT levels in milk samples were around 21.23
+
+
+__k20__
+```{r k20}
+
+outliers_k20 = plot_summary(milk, milk$k20, 'K20')
+outlier = c(outlier, outliers_k20)
+length(outliers_k20)
+
+```
+> The distribution ok k20 measurements for the milk samples appears to be rightly skewed.
+> Mean is pulled towards the right side of the distribution due to presence of some unusually high values for this parameter.
+> Outliers can be removed to make data reach normality. 
+
+
+__a30__
+```{r a30}
+
+#plot_summary(milk, milk$a30, 'a30')
+# Scaling data as spread of data is quite high.
+milk$a30 = scale(milk$a30)
+outliers_a30 = plot_summary(milk, milk$a30, 'a30')
+outlier = c(outlier, outliers_a30)
+length(outliers_a30)
+```
+> Mean and median of the distribution of measurements for a30 is approximately equal, but there is a huge variation observed. So scaled the data.
+> Two peaks appears in the distribution of the data.
+> Average value of sample for this measurement is around 0.
+
+
+
+_a60__
+```{r a60}
+outliers_a60 = plot_summary(milk, milk$a60, 'a60')
+outlier = c(outlier, outliers_a60)
+length(outliers_a60)
+```
+> a60 measures for milk samples appear to be noramlly distributed with slighltly longer tail towards the right side
+> Mean is slightly larger than median due to presence of some unusually high values, because of which mean is shifted towards right for the distribution.
+> On an average a60 is around 28.26 for samples across dataset.
+
+
+__Outliers which needs to be treated before modelling__
+
+> These values were identified as the possible outliers and should be removed from the dataset before proceeding to modelling of the data.
+> After removal of the outliers the dataset contains 333 observations.
+
+```{r outlier_treatment}
+milk = data.frame(milk[-unique(outlier), ])
+dim(milk)
+```
+
+# Task 2 : *Clustering*
+
+```{r}
+#head(milk)
+milk_spectra = milk[, -c(1:51)]
+milk_spectra = scale(milk_spectra)
+dim(milk_spectra)
+```
+
+__Visualizing clustering structures through hierarchical clustering technique__
+
+> I used hierarchical clustering method to get an idea of groups present in the dataset of milk spectra.
+> I used euclidean distance as the distanec to measure the dissimilarity between two points and complete linkage to measure the dissimilarity between joined clusters.
+> From the results I can say that, there are two major groups present in the spectra records of the milk samples.
+
+```{r hierarchical}
+
+# creating dissimilarity matrix
+dis_euc = dist(milk_spectra, method = 'euclidean')
+
+# clustering the milk spectra data using the complete linkage method
+cl_comp = hclust(dis_euc, method = 'complete')
+
+# Plotting dendogram to visualize the clustering structure
+plot(cl_comp)
+
+```
+
+
+
+__Validation__
+
+> Checking the results produced by the cutting dendoram for two clustering solution's and cross checking it with the actal labels with categorical covariate __*milking time*__ which is a two group cluster.
+
+
+```{r}
+index_na = which(is.na(milk$Milking_Time)) # position where value is missing in the milking time.
+
+# removing the index from the table and running the validation of clustering result obtained by cross referencing with it.
+milk = milk[-index_na, ]
+milk_spectra = milk_spectra[-index_na, ]
+```
+
+
+```{r hclust_validation}
+
+# Cutting dendogram to create groups 
+
+hcl = cutree(cl_comp, k = 2)
+hcl = hcl[-index_na] # removing the the value at the position of index_na
+table(hcl, milk[, 4]) # table to cross table actual labels vs results produced from the clustering results by ctting dendogram into two.
+
+
+```
+
+__Kmeans clustering__
+
+> With some initial understanding about the grouping structures in the milk spectrum data, I can now run kmeans to further check the compactness of the clusters in the dataset.
+
+> I will run k-mean clustering algorithm over a range of k values to figure out the best clustering solution for this dataset. I will record the within cluster sum of squares for each value of the k (1 to 10).
+
+
+```{r kmeans}
+
+# fitting kmeans clustering model and computing between and within sum of squares for different values of K.
+
+WGSS = rep(0,10) # setting a vector to record WSS for clustering solution corresponding to each k.
+BSS = rep(0,10)  # setting a vector to record BSS for clustering solution corresponding to each k.
+K = 10
+
+for(k in 1:K){
+  
+  fit = kmeans(milk_spectra, centers = k, nstart = 30)
+  WGSS[k] = fit$tot.withinss
+  BSS[k] = fit$betweenss
+  
+}
+
+# computing calinski- harabasz index  
+N = nrow(milk_spectra)
+ch = (BSS/(1:K - 1)) / (WGSS/(N - 1:K))
+ch[1] = 0   # as ch index for K= 1 equal's to zero
+
+# Plotting CH Index, Between and within sum of squares
+plot(1:k, ch, type = 'b', ylab = 'CH Index', xlab = 'K', )
+plot(1:10, WGSS, type = "b", xlab = 'K values', ylab = "Within Sum of Squares")
+plot(1:10, BSS, type = "b", xlab = 'K values', ylab = "Between Sum of Squares")
+
+
+```
+From the avobe plots of BSS, WSS and CH Index with respect to different number of cluster sizes, I can say that:
+
+> Between sum of measures the compactness of the points within a cluster, so lower the value the more compact will be the values within a cluster. A bend in curve is observed at k =2.
+> Similarly, Between sum of squares measures the dissimilarity between two different cluster points, therefore more the value more dissimilar will be points belonging to different clusters, similarly bend in cureve is observed at k =2.
+> Higher values of CH index indicates that WSS is small i.e points within a specific cluster are quite close to each other and BSS is large indicates distance between clusters after accounting for data center is high. WSS represents the variance within the plots and as K increases it decreases but a bend can be observed at K =2, indicating that additional clusters beyond 2 will have little affect.
+> So, kmeans clustering solution with k=2 represents the best clustering solution for the data as per results obtained form BSS, WSS and CH index.
+
+__Silhouette Index__
+
+> I will further investigate to confirm the optimal K for the clustering solution for the milk spectra data.
+
+```{r silhouette_index}
+
+fitk_2 = kmeans(milk_spectra, centers = 2, nstart = 50)
+fitk_3 = kmeans(milk_spectra, centers = 3, nstart = 50)
+
+
+# Constructing a  distance matrix using a squared Euclidean distance
+d = dist(milk_spectra, method = 'euclidean')^2
+
+sil2 = silhouette(fitk_2$cluster, d)
+sil3 = silhouette(fitk_3$cluster, d)
+
+col = c("darkorange2", "deepskyblue3", "magenta3")
+
+# Producing the two silhouette plots
+
+plot(sil2, col = adjustcolor(col[1:2], 0.4), main = ' Milk spectra data k : 2')
+plot(sil3, col = adjustcolor(col, 0.4), main = 'Milk Spectra data k : 3')
+
+
+```
+
+__External validation of clustering solution using rand index and adjusted rand index__
+
+
+> I have already constructed a dendogram for the milk spectra data earlier.
+> After cutting the dendogram, it produces a two cluster solution, so I have now a hierarchical clustering solution and a partitioning solution for the milk spectra data.
+> I can now compare the agreement between the two clustering solutions using the external validation measures like rand and adjusted rand indexes.
+
+```{r external_validation}
+
+tab = table(fitk_2$cluster, hcl)
+
+classAgreement(tab)$crand
+adjustedRandIndex(hcl, fitk_2$cluster)
+
+```
+> A rand index score of 0.31 suggest a fair amount of agreement between the two clustering solutions.
+
+
+```{r clustplot}
+
+clusplot(cmdscale(dist(milk_spectra)) ,
+         fitk_2$cluster,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 4,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste('Cluster of Clients'),
+         xlab = 'X axis',
+         ylab = 'Y axis')
+
+```
+
+# Task 3: Using its MIR spectrum, can you classify a milk sample as having heat stability of less than 10 minutes? 
+
+> Created a class labels such that
+   1. Heat stability less than 10 mins represented by 1.
+   2. Heat stability above 10 mins represented by 0.
+   
+```{r generating_classlabels}
+milk2 = dat[-index, ]
+which(is.na(milk2$Heat_stability)) # checking the missimg entries in the heat stability column
+
+hs_label = c() # empty vector to store labels for heat stability 
+
+for(h in milk2$Heat_stability){
+   
+   # Creating column labels for heat stability less than 10 mins specified by 1 and heat stability above 10 mins by 0
+   
+   if(h < 10) hs_label = c(hs_label, 1)
+   else hs_label = c(hs_label, 0)
+   
+}
+
+length(hs_label)
+
+```
+
+__added class label column in milk spectra dataframe milk2__
+```{r adding_label}
+
+milk2 = milk2[, -c(1:51)] # Extracting the columns corresponding to different wavelengths
+milk2$hs_label = hs_label # Adding the column labels for representing heat stability above and below 10 mins
+
+```
+
+
+__Splitting the milk spectra data into training and testing sets__
+```{r train_test_split}
+
+# Creating training and testing datasets
+train_size = 0.7*nrow(milk2) # size of training data, 80% of total milk sample
+set.seed(20200544) 
+indices = sample(1:nrow(milk2)) # Creating a list of indies which are randomly selected.
+
+# Splitting milk2 data into test and train datasets.
+train = milk2[indices[1:train_size], ]
+test = milk2[indices[-(1:train_size)], ]
+
+```
+
+
+__*K nearest neighbour classifier*__
+```{r knn}
+
+K = 10
+
+# Running K nearest neighbour algorithm with K in range of 1:10 to find the best K for this classification probelem.
+
+misclassification_rate = rep(NA, 10)
+for(k in 1:K){
+  
+  knn_res = knn(train[,-ncol(train)], test[,-ncol(test)], cl = train[, 'hs_label'], k = k)
+  
+  # Creating cross- classification table for two factors 
+  table(knn_res, test[, 'hs_label'])
+
+  # Diagonal elements represents the agreement between the predicted labels and the actual class labels of observations.
+  misclassification = nrow(test) - sum( diag(table(knn_res, test[, 'hs_label'])) )
+  misclassification_rate[k] = ( misclassification / nrow(test) ) * 100
+  
+}
+
+misclassification_rate
+plot(x = 1:K, misclassification_rate, type = 'b', ylab = 'Misclassification Rate')
+
+```
+
+> For k = 4, lowest misclassification rate was observed in classifying milk sample having less than 10 minutes of heat stability.
+
